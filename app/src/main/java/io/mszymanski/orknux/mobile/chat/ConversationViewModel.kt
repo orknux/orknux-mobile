@@ -353,21 +353,24 @@ class ConversationViewModel(
     }
 
     /**
-     * Picks up an answer written while nobody watched, then waits for the server
-     * to start one by itself: a watcher firing, a reminder coming due, a plan
-     * being carried out once approved.
+     * Keeps an open chat up to date with what happens to it elsewhere: an answer
+     * written while nobody watched, a message sent from the web, a watcher firing.
+     *
+     * Asked again every few seconds rather than held open with `?wait=true`, which
+     * the server only ends for a turn it started itself: a turn somebody sent from
+     * another client would never have been heard of. Only while the screen is in
+     * view; [pause] ends it.
      */
     private fun startFollowing() {
         if (followJob?.isActive == true || id == null) return
         followJob = viewModelScope.launch {
-            var wait = false
             var failures = 0
             while (isActive) {
                 val chat = id ?: return@launch
                 var began = false
                 try {
                     reader.read(
-                        first = { onFrame -> api.follow(chat, wait, onFrame) },
+                        first = { onFrame -> api.follow(chat, onFrame = onFrame) },
                         onEvent = { event ->
                             when {
                                 // A turn left on screen when the app was backgrounded ended unseen.
@@ -391,10 +394,17 @@ class ConversationViewModel(
                     failures++
                     delay((FOLLOW_RETRY_MS * failures).coerceAtMost(FOLLOW_RETRY_MOST_MS))
                 }
-                if (began) endFollowedTurn(chat)
-                wait = true
+                if (began) endFollowedTurn(chat) else if (failures == 0) pickUpWhatChanged(chat)
+                delay(IDLE_LOOK_MS)
             }
         }
+    }
+
+    /** Said elsewhere and already answered, or renamed: nothing a turn would have told us. */
+    private suspend fun pickUpWhatChanged(chat: String) {
+        val fresh = runCatching { api.session(chat) }.getOrNull() ?: return
+        val held = _state.value.chat
+        if (fresh.lastMessageAt != held?.lastMessageAt) reload(markRead = true) else if (fresh != held) _state.update { it.copy(chat = fresh) }
     }
 
     private suspend fun enterFollowedTurn(chat: String, kept: Int?) {
@@ -577,6 +587,7 @@ class ConversationViewModel(
 
     private companion object {
         const val REQUEST_POLL_MS = 3_000L
+        const val IDLE_LOOK_MS = 4_000L
         const val FOLLOW_RETRY_MS = 3_000L
         const val FOLLOW_RETRY_MOST_MS = 30_000L
     }

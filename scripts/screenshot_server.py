@@ -12,6 +12,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 AGENT = "Support responder"
+TURNS_ELSEWHERE = []
 STREAM_PIECES = int(os.environ.get("STREAM_PIECES", 25))
 WORKSPACE = {
     "id": "1", "name": "Northwind Support", "transcriptionModelId": "2", "speechModelId": "3",
@@ -113,11 +114,44 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/api/attachments/9":
             self.reply("A made-up incident report.", "text/plain")
         elif "/follow" in self.path:
-            self.reply('event: idle\ndata: {}\n\n', "text/event-stream")
+            if TURNS_ELSEWHERE:
+                TURNS_ELSEWHERE.pop()
+                self.reply_turn_from_elsewhere()
+            else:
+                self.reply('event: idle\ndata: {}\n\n', "text/event-stream")
         else:
             self.reply("{}", status=404)
 
+    def reply_turn_from_elsewhere(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        MESSAGES["1"].append({"role": "user", "content": "Sent from the web, still being answered"})
+        kept = len(MESSAGES["1"])
+        self.wfile.write(f'event: following\ndata: {{"kept": {kept}}}\n\n'.encode())
+        for i in range(STREAM_PIECES):
+            time.sleep(1)
+            frame = {"text": f"Web answer piece {i}. "}
+            self.wfile.write(f"event: chunk\ndata: {json.dumps(frame)}\n\n".encode())
+            self.wfile.flush()
+        self.wfile.write(b'event: done\ndata: {"millis": 1000}\n\n')
+
+    def elsewhere(self):
+        """What another client doing something looks like, for trying that the app notices."""
+        if self.path == "/demo/said":
+            MESSAGES["1"].append({"role": "user", "content": "Said on the web"})
+            MESSAGES["1"].append({"role": "assistant", "content": "Answered on the web", "at": "2026-10-27T10:00:00Z"})
+            SESSIONS[0]["lastMessageAt"] = "2026-10-27T10:00:00Z"
+        elif self.path == "/demo/turn":
+            TURNS_ELSEWHERE.append(1)
+        elif self.path == "/demo/renamed":
+            SESSIONS[3]["title"] = "Renamed on the web"
+        self.reply("{}")
+
     def do_POST(self):
+        if self.path.startswith("/demo/"):
+            self.elsewhere()
+            return
         if self.path.endswith("/stream"):
             sent = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
             print("stream:", sent, flush=True)

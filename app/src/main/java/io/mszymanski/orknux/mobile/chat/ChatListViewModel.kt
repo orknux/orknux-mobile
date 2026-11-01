@@ -3,6 +3,7 @@ package io.mszymanski.orknux.mobile.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,6 +29,18 @@ class ChatListViewModel(
     private val _state = MutableStateFlow(ChatListState())
     val state: StateFlow<ChatListState> = _state.asStateFlow()
     private var wanted = initialWorkspace
+
+    /** While the list is in view: quietly, because nobody asked and a failed look is no news. */
+    suspend fun keepFresh() {
+        while (true) {
+            delay(LOOK_EVERY_MS)
+            val workspace = _state.value.workspace ?: continue
+            runCatching { api.sessions(workspace.id) }.onSuccess { found ->
+                val chats = found.filter { it.lastMessageAt != null }
+                _state.update { if (it.workspace?.id == workspace.id) it.copy(chats = chats) else it }
+            }
+        }
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -81,3 +94,5 @@ class ChatListViewModel(
         }
     }
 }
+
+private const val LOOK_EVERY_MS = 6_000L
