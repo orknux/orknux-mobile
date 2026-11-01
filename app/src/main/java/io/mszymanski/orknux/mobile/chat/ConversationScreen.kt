@@ -748,8 +748,8 @@ private fun Composer(
                         .semantics { contentDescription = "Send" },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Box(Modifier.size(32.dp).background(Ork.accent, CircleShape), contentAlignment = Alignment.Center) {
-                        Icon(OrkIcons.ArrowLeft, null, Modifier.size(18.dp).rotate(90f), tint = Ork.onAccent)
+                    Box(Modifier.size(38.dp).background(Ork.accent, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(OrkIcons.ArrowLeft, null, Modifier.size(20.dp).rotate(90f), tint = Ork.onAccent)
                     }
                 }
                 answering -> OrkIconButton(OrkIcons.Stop, "Stop", onStop, Modifier.size(COMPOSER_BUTTON), iconSize = 20.dp, tint = Ork.textPrimary)
