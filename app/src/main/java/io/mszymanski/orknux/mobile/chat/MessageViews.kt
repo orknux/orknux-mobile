@@ -168,7 +168,7 @@ fun AnswerHeader(name: String?, at: String?) {
 @Composable
 fun AttachmentRow(attachments: List<Attachment>, attachmentUrl: (String) -> String) {
     if (attachments.isEmpty()) return
-    val uri = rememberSafeUriHandler()
+    val opener = LocalAttachmentOpener.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         attachments.forEach { file ->
             if (file.isPicture) {
@@ -182,11 +182,15 @@ fun AttachmentRow(attachments: List<Attachment>, attachmentUrl: (String) -> Stri
                 Row(
                     Modifier.clip(RoundedCornerShape(Ork.radius6)).background(Ork.surfaceRaised)
                         .border(1.dp, Ork.border, RoundedCornerShape(Ork.radius6))
-                        .clickable { uri.openUri(attachmentUrl(file.id)) }.padding(horizontal = 10.dp, vertical = 8.dp),
+                        .clickable { opener?.open(file) }.padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(OrkIcons.File, null, Modifier.size(14.dp), tint = Ork.textSecondary)
+                    if (opener?.opening?.value == file.id) {
+                        CircularProgressIndicator(Modifier.size(14.dp), color = Ork.accent, strokeWidth = 2.dp)
+                    } else {
+                        Icon(OrkIcons.File, null, Modifier.size(14.dp), tint = Ork.textSecondary)
+                    }
                     Text(file.filename.ifBlank { "File" }, style = MaterialTheme.typography.bodySmall, color = Ork.textBody, maxLines = 1)
                 }
             }

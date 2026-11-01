@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -109,6 +110,7 @@ private sealed interface TranscriptRow {
     data class LiveThinking(override val key: String, val text: String) : TranscriptRow
     data class LiveAnswer(override val key: String, val text: String) : TranscriptRow
     data class Status(override val key: String, val text: String) : TranscriptRow
+    data class Files(override val key: String, val files: List<Attachment>) : TranscriptRow
     data class Spend(override val key: String, val text: String) : TranscriptRow
     data class Actions(override val key: String, val message: ChatMessage, val last: Boolean) : TranscriptRow
     data class Replies(override val key: String, val replies: List<String>) : TranscriptRow
@@ -129,6 +131,7 @@ private fun rowsOf(state: ConversationState): List<TranscriptRow> {
         live.steps.forEachIndexed { index, step -> rows += TranscriptRow.Step("s$index", step) }
         if (live.thinking.isNotBlank()) rows += TranscriptRow.LiveThinking("think", live.thinking)
         if (live.answer.isNotEmpty()) rows += TranscriptRow.LiveAnswer("answer", live.answer)
+        if (live.files.isNotEmpty()) rows += TranscriptRow.Files("files", live.files)
         if (live.answer.isEmpty()) rows += TranscriptRow.Status("status", live.status ?: "Waiting for ${state.answeredBy ?: "the answer"}…")
     }
     if (state.live == null) state.lastTurn?.let { rows += TranscriptRow.Spend("spend", it) }
@@ -315,6 +318,8 @@ fun ConversationScreen(
     var renaming by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
 
+    val opener = remember(client) { AttachmentOpener(context, client, scope) { problem = it } }
+    CompositionLocalProvider(LocalAttachmentOpener provides opener) {
     Column(Modifier.fillMaxSize().statusBarsPadding().imePadding()) {
         ConversationBar(
             state,
@@ -393,6 +398,7 @@ fun ConversationScreen(
             },
             onUnavailable = { problem = it },
         )
+    }
     }
 
     if (renaming) {
@@ -536,6 +542,7 @@ private fun Transcript(
                     MarkdownText(row.text, base)
                 }
                 is TranscriptRow.Status -> WaitingLine(row.text)
+                is TranscriptRow.Files -> AttachmentRow(row.files, attachmentUrl)
                 is TranscriptRow.Spend -> Text(row.text, style = MaterialTheme.typography.bodySmall, color = Ork.textMuted)
                 is TranscriptRow.Actions -> Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     OrkIconButton(OrkIcons.Copy, "Copy", { onCopy(row.message.content) }, Modifier.size(34.dp), iconSize = 15.dp, tint = Ork.textMuted)

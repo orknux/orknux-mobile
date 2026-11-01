@@ -33,6 +33,8 @@ data class LiveTurn(
     val steps: List<LiveStep> = emptyList(),
     val answer: String = "",
     val status: String? = null,
+    /** What the agent's side attached during this turn; the history puts them under the answer when it ends. */
+    val files: List<Attachment> = emptyList(),
 )
 
 data class PendingFile(val attachment: Attachment)
@@ -417,6 +419,7 @@ class ConversationViewModel(
                 viewModelScope.launch { refreshRequests() }
             }
             is TurnEvent.PersonRead -> updateLive { it.copy(steps = markPersonRead(it.steps, event.text)) }
+            is TurnEvent.Filed -> updateLive { it.copy(files = it.files + event.attachment) }
             is TurnEvent.Drew -> updateLive { it.copy(steps = it.steps + LiveStep.Picture(event.markdown)) }
             is TurnEvent.Writing -> updateLive {
                 it.copy(status = if (event.tool != null) "Writing ${event.tool}…" else "Writing…")

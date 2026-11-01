@@ -49,6 +49,11 @@ MESSAGES = {
         {"role": "tool", "actor": "memory_save", "content": '{"note":"Backfill still open"}'},
         {"role": "assistant", "content": DRAFT, "at": "2026-10-26T21:40:00Z", "thinking": "Keep it short.", "thinkingMillis": 2100.0},
     ],
+    "3": [
+        {"role": "user", "content": "File the billing incident and attach the report."},
+        {"role": "assistant", "content": "Filed. The report is attached.", "at": "2026-10-26T18:12:00Z",
+         "attachments": [{"id": "9", "filename": "incident-report.txt", "contentType": "text/plain", "sizeBytes": 26.0}]},
+    ],
     "2": [
         {"role": "user", "content": "Work out how we retire the legacy billing webhook without breaking anything."},
         {"role": "assistant", "content": "I've put the plan to you here. I'll carry it out once you approve it.", "at": "2026-10-26T21:38:00Z"},
@@ -102,6 +107,8 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(json.dumps({"method": "NONE", "displayName": "no sign-in at all"}))
         elif self.path == "/api/session":
             self.reply(json.dumps({"username": "alice", "displayName": "alice"}))
+        elif self.path == "/api/attachments/9":
+            self.reply("A made-up incident report.", "text/plain")
         elif "/follow" in self.path:
             self.reply('event: idle\ndata: {}\n\n', "text/event-stream")
         else:
