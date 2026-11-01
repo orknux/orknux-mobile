@@ -128,15 +128,9 @@ private fun rowsOf(state: ConversationState): List<TranscriptRow> {
     val rows = mutableListOf<TranscriptRow>()
     val lastAnswer = state.lines.indexOfLast { it.isAnswer }
     val readAt = readLineIndex(state.lines, state.live)
-    val lastAsked = state.lines.indexOfLast { it.isUser }
     state.lines.forEachIndexed { index, message ->
-        val read = when {
-            index == readAt -> true
-            // Asked, and the agent has not shown anything yet: it may be a long prompt on a slow model.
-            state.live != null && readAt == null && index == lastAsked -> false
-            else -> null
-        }
-        rows += TranscriptRow.Line("l$index", message, read = read)
+        // Nothing until then: "Queued" is for what is written into a turn already running.
+        rows += TranscriptRow.Line("l$index", message, read = true.takeIf { index == readAt })
         if (message.isAnswer && message.content.isNotBlank()) {
             rows += TranscriptRow.Actions("a$index", message, last = index == lastAnswer && state.live == null)
         }
