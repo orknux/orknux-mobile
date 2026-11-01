@@ -742,11 +742,16 @@ private fun Composer(
             }
             // Only when there is something to send or stop, so the microphones keep the corner the thumb is on.
             when {
+                // Drawn small, as other chat apps draw it; the whole 44dp still takes the tap.
                 canSend -> Box(
-                    Modifier.size(COMPOSER_BUTTON).clip(CircleShape).background(Ork.accent).clickable(onClick = onSend)
+                    Modifier.size(COMPOSER_BUTTON).clip(CircleShape).clickable(onClick = onSend)
                         .semantics { contentDescription = "Send" },
                     contentAlignment = Alignment.Center,
-                ) { Icon(OrkIcons.ArrowLeft, null, Modifier.size(22.dp).rotate(90f), tint = Ork.onAccent) }
+                ) {
+                    Box(Modifier.size(32.dp).background(Ork.accent, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(OrkIcons.ArrowLeft, null, Modifier.size(18.dp).rotate(90f), tint = Ork.onAccent)
+                    }
+                }
                 answering -> OrkIconButton(OrkIcons.Stop, "Stop", onStop, Modifier.size(COMPOSER_BUTTON), iconSize = 20.dp, tint = Ork.textPrimary)
             }
         }
