@@ -13,6 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 AGENT = "Support responder"
 TURNS_ELSEWHERE = []
+STREAM_FIRST_AFTER = int(os.environ.get("STREAM_FIRST_AFTER", 0))
 STREAM_PIECES = int(os.environ.get("STREAM_PIECES", 25))
 WORKSPACE = {
     "id": "1", "name": "Northwind Support", "transcriptionModelId": "2", "speechModelId": "3",
@@ -92,6 +93,9 @@ def answer(query, variables):
         return {"chatReplySuggestions": ["Make it shorter", "What should I do first?"] if variables["id"] == "1" else []}
     if "sessionRequests" in query:
         return {"sessionRequests": [PLAN] if variables["s"] == "20" else []}
+    if "postChatMessageDuringTurn" in query:
+        print("during turn:", variables, flush=True)
+        return {"postChatMessageDuringTurn": True}
     if "markChatRead" in query:
         return {"markChatRead": {"id": variables["id"]}}
     raise ValueError(f"The demonstration has no answer to: {query[:80]}")
@@ -176,6 +180,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
+        time.sleep(STREAM_FIRST_AFTER)
         for i in range(STREAM_PIECES):
             time.sleep(1)
             frame = {"text": f"Piece {i} of the answer. "}

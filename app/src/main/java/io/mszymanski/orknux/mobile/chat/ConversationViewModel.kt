@@ -25,6 +25,8 @@ sealed interface LiveStep {
     /** Written during the turn: it waits in the agent's inbox until its next step takes it in. */
     data class Person(val text: String, val read: Boolean = false) : LiveStep
     data class Picture(val markdown: String) : LiveStep
+
+    val isQueued: Boolean get() = this is Person && !read
 }
 
 /** The turn being written, drawn apart from the history until the history holds it. */
@@ -593,10 +595,15 @@ class ConversationViewModel(
     }
 }
 
-/** The oldest unread line saying this is now read; one written from elsewhere is added as read. */
+/**
+ * The oldest unread line saying this is now read, and it moves to where it was
+ * read: what came before it did not have it to go on. One written from elsewhere
+ * is added the same way.
+ */
 fun markPersonRead(steps: List<LiveStep>, text: String): List<LiveStep> {
     val at = steps.indexOfFirst { it is LiveStep.Person && !it.read && it.text == text }
-    return if (at >= 0) steps.toMutableList().also { it[at] = LiveStep.Person(text, read = true) } else steps + LiveStep.Person(text, read = true)
+    val others = if (at >= 0) steps.filterIndexed { index, _ -> index != at } else steps
+    return others + LiveStep.Person(text, read = true)
 }
 
 /**

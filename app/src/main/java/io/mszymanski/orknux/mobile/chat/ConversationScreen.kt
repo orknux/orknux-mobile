@@ -112,7 +112,7 @@ private const val AT_NEWEST_PX = 48
 private sealed interface TranscriptRow {
     val key: String
 
-    data class Line(override val key: String, val message: ChatMessage, val read: Boolean) : TranscriptRow
+    data class Line(override val key: String, val message: ChatMessage, val read: Boolean?) : TranscriptRow
     data class Step(override val key: String, val step: LiveStep) : TranscriptRow
     data class LiveThinking(override val key: String, val text: String) : TranscriptRow
     data class LiveAnswer(override val key: String, val text: String) : TranscriptRow
@@ -128,17 +128,30 @@ private fun rowsOf(state: ConversationState): List<TranscriptRow> {
     val rows = mutableListOf<TranscriptRow>()
     val lastAnswer = state.lines.indexOfLast { it.isAnswer }
     val readAt = readLineIndex(state.lines, state.live)
+    val lastAsked = state.lines.indexOfLast { it.isUser }
     state.lines.forEachIndexed { index, message ->
-        rows += TranscriptRow.Line("l$index", message, read = index == readAt)
+        val read = when {
+            index == readAt -> true
+            // Asked, and the agent has not shown anything yet: it may be a long prompt on a slow model.
+            state.live != null && readAt == null && index == lastAsked -> false
+            else -> null
+        }
+        rows += TranscriptRow.Line("l$index", message, read = read)
         if (message.isAnswer && message.content.isNotBlank()) {
             rows += TranscriptRow.Actions("a$index", message, last = index == lastAnswer && state.live == null)
         }
     }
     state.live?.let { live ->
-        live.steps.forEachIndexed { index, step -> rows += TranscriptRow.Step("s$index", step) }
+        // What the agent has not read yet waits at the bottom, under an answer however long it grows.
+        live.steps.forEachIndexed { index, step ->
+            if (!step.isQueued) rows += TranscriptRow.Step("s$index", step)
+        }
         if (live.thinking.isNotBlank()) rows += TranscriptRow.LiveThinking("think", live.thinking)
         if (live.answer.isNotEmpty()) rows += TranscriptRow.LiveAnswer("answer", live.answer)
         if (live.files.isNotEmpty()) rows += TranscriptRow.Files("files", live.files)
+        live.steps.forEachIndexed { index, step ->
+            if (step.isQueued) rows += TranscriptRow.Step("q$index", step)
+        }
         if (live.answer.isEmpty()) rows += TranscriptRow.Status("status", live.status ?: "Waiting for ${state.answeredBy ?: "the answer"}…")
     }
     if (state.live == null) state.lastTurn?.let { rows += TranscriptRow.Spend("spend", it) }
@@ -533,7 +546,7 @@ private fun Transcript(
     val scope = rememberCoroutineScope()
     // What was said and written, not the suggestions and spend lines that come and go around it.
     val arrived = state.lines.size + state.openRequests.size + (state.live?.let { it.steps.size + it.answer.length + it.files.size } ?: 0)
-    val said = state.lines.count { it.isUser }
+    val said = state.lines.count { it.isUser } + (state.live?.steps?.count { it is LiveStep.Person } ?: 0)
     var saidBefore by rememberSaveable { mutableStateOf(said) }
     var arrivedBefore by rememberSaveable { mutableStateOf(arrived) }
     LaunchedEffect(arrived, said) {
@@ -622,9 +635,9 @@ private fun Transcript(
 }
 
 @Composable
-private fun HistoryLine(message: ChatMessage, read: Boolean, state: ConversationState, base: String, attachmentUrl: (String) -> String) {
+private fun HistoryLine(message: ChatMessage, read: Boolean?, state: ConversationState, base: String, attachmentUrl: (String) -> String) {
     when {
-        message.isUser -> UserBubble(message, attachmentUrl, read = true.takeIf { read })
+        message.isUser -> UserBubble(message, attachmentUrl, read = read)
         message.isCall -> ToolLine(message.actor ?: "tool", message.content)
         message.isThought -> ThinkingLine(message.thinking ?: message.content, message.thinkingMillis?.toLong())
         message.isAnswer -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

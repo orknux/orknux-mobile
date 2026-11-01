@@ -30,9 +30,20 @@ class ReadByAgentTest {
     }
 
     @Test
-    fun aLineWrittenDuringTheTurnIsMarkedOnceAndInOrder() {
-        val two = listOf(LiveStep.Person("again"), LiveStep.Person("again"))
-        assertEquals(listOf(LiveStep.Person("again", true), LiveStep.Person("again")), markPersonRead(two, "again"))
+    fun aLineWrittenDuringTheTurnIsMarkedOnceAndMovesToWhereItWasRead() {
+        val call = LiveStep.Call(0, "tool", "{}")
+        val steps = listOf(LiveStep.Person("again"), LiveStep.Person("again"), call)
+        assertEquals(
+            listOf(LiveStep.Person("again"), call, LiveStep.Person("again", true)),
+            markPersonRead(steps, "again"),
+        )
+    }
+
+    @Test
+    fun onlyAnUnreadLineIsQueued() {
+        assertEquals(true, LiveStep.Person("x").isQueued)
+        assertEquals(false, LiveStep.Person("x", read = true).isQueued)
+        assertEquals(false, LiveStep.Said("x").isQueued)
     }
 
     @Test
