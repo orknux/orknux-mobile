@@ -742,10 +742,11 @@ private fun Composer(
             }
             // Only when there is something to send or stop, so the microphones keep the corner the thumb is on.
             when {
-                canSend -> {
-                    Spacer(Modifier.size(4.dp))
-                    PrimaryButton("Send", onSend, Modifier.height(COMPOSER_BUTTON))
-                }
+                canSend -> Box(
+                    Modifier.size(COMPOSER_BUTTON).clip(CircleShape).background(Ork.accent).clickable(onClick = onSend)
+                        .semantics { contentDescription = "Send" },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(OrkIcons.ArrowLeft, null, Modifier.size(22.dp).rotate(90f), tint = Ork.onAccent) }
                 answering -> OrkIconButton(OrkIcons.Stop, "Stop", onStop, Modifier.size(COMPOSER_BUTTON), iconSize = 20.dp, tint = Ork.textPrimary)
             }
         }
