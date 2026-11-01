@@ -79,3 +79,8 @@ mean the same thing on a phone.
   can't sign in from a phone yet.
 - **Cleartext http is allowed** because self-hosted servers on a LAN or VPN often have no certificate. The
   sign-in screen warns when a password would cross a network unencrypted.
+
+## License
+
+[Apache License 2.0](LICENSE). The bundled Geist and JetBrains Mono fonts are under the SIL Open Font License; see
+[licenses](licenses).

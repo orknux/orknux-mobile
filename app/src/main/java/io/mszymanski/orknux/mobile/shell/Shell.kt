@@ -46,8 +46,9 @@ fun OrknuxRoot(session: AppSession) {
         if (signedIn == null) {
             SignInScreen(session, notice)
         } else {
-            // Keyed, so nothing of one server's session outlives it.
-            androidx.compose.runtime.key(signedIn) { Shell(session, signedIn) }
+            // Keyed by the address and not the client: a client is new on every launch, and this key is part of what
+            // the saved screen is found by, so keying by it sent everybody back to the chat list on return.
+            androidx.compose.runtime.key(signedIn.base) { Shell(session, signedIn) }
         }
     }
 }
