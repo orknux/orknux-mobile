@@ -65,21 +65,6 @@ accent, and `OrkIcons.kt` is generated from its SVGs by `scripts/generate_icons.
 `chat/TurnReader.kt` follows `api/chat.ts`, and `voice/` follows `VoiceMode.tsx`, so a workspace's voice settings
 mean the same thing on a phone.
 
-## Decisions worth knowing
-
-- **Android only for now.** The networking, chat and voice rules are plain Kotlin, which keeps a later iOS
-  target open, but nothing here is built or tested for it.
-- **Pictures from outside the server become links.** A model's answer can't make the phone fetch an outside
-  address. In a browser an installation can close that road with its content-security policy; nothing enforces
-  that policy here, so it stays closed.
-- **Voice ends when the app leaves the screen.** Keeping the microphone open unseen needs a foreground service,
-  which has not been built. The turn itself goes on and lands in the history.
-- **OIDC and GitHub installations sign in with an access token**, because a browser redirect ends in a cookie this
-  app can't receive. The server only issues tokens to internal users, so other accounts on those installations
-  can't sign in from a phone yet.
-- **Cleartext http is allowed** because self-hosted servers on a LAN or VPN often have no certificate. The
-  sign-in screen warns when a password would cross a network unencrypted.
-
 ## License
 
 [Apache License 2.0](LICENSE). The bundled Geist and JetBrains Mono fonts are under the SIL Open Font License; see
