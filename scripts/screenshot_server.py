@@ -119,8 +119,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if self.path.endswith("/stream"):
-            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            sent = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))))
+            print("stream:", sent, flush=True)
             self.stream()
+            return
+        if self.path.endswith("/attachments"):
+            size = int(self.headers.get("Content-Length", 0))
+            print("upload:", self.headers.get("Content-Type", "")[:30], size, "bytes", flush=True)
+            self.rfile.read(size)
+            # As the real server spells it: the id is a number here, unlike in GraphQL.
+            self.reply(json.dumps({"attachments": [{"id": 9, "filename": "picture.png", "contentType": "image/png", "sizeBytes": size, "uploadedBy": "alice"}]}))
             return
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or "{}")
         try:

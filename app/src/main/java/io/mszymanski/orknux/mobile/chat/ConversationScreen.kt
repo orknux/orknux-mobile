@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -61,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -73,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleStartEffect
+import coil3.compose.AsyncImage
 import kotlinx.coroutines.launch
 import io.mszymanski.orknux.mobile.design.Banner
 import io.mszymanski.orknux.mobile.design.ConfirmDialog
@@ -251,7 +254,7 @@ fun ConversationScreen(
     val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         uris.forEach { uri ->
             val resolver = context.contentResolver
-            model.attach(displayName(context, uri), resolver.getType(uri) ?: "application/octet-stream") {
+            model.attach(displayName(context, uri), resolver.getType(uri) ?: "application/octet-stream", uri.toString()) {
                 resolver.openInputStream(uri)?.use { it.readBytes() } ?: error("That file could not be read.")
             }
         }
@@ -516,8 +519,9 @@ private fun Transcript(
     // Reversed, so a growing answer stays pinned above the composer and history scrolls up.
     val list = rememberLazyListState()
     // Follows what arrives only while the newest is in view: scrolled up to read, the list stays put and says so.
-    var following by remember { mutableStateOf(true) }
-    var somethingNew by remember { mutableStateOf(false) }
+    // Saved with the list's own place, so a chat the phone had to reload comes back where it was being read.
+    var following by rememberSaveable { mutableStateOf(true) }
+    var somethingNew by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(list) {
         snapshotFlow { Triple(list.isScrollInProgress, list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
             .collect { (scrolling, first, offset) ->
@@ -527,15 +531,21 @@ private fun Transcript(
             }
     }
     val scope = rememberCoroutineScope()
-    // Somebody who has just said something wants to see what comes of it, wherever they had scrolled to.
+    // What was said and written, not the suggestions and spend lines that come and go around it.
+    val arrived = state.lines.size + state.openRequests.size + (state.live?.let { it.steps.size + it.answer.length + it.files.size } ?: 0)
     val said = state.lines.count { it.isUser }
-    LaunchedEffect(said) {
-        following = true
-        somethingNew = false
-    }
-    val arrived = rows.size to (state.live?.answer?.length ?: 0)
+    var saidBefore by rememberSaveable { mutableStateOf(said) }
+    var arrivedBefore by rememberSaveable { mutableStateOf(arrived) }
     LaunchedEffect(arrived, said) {
-        if (following) list.scrollToItem(0) else somethingNew = true
+        // Somebody who has just said something wants to see what comes of it, wherever they had scrolled to.
+        if (said > saidBefore) {
+            following = true
+            somethingNew = false
+        }
+        saidBefore = said
+        val changed = arrived > arrivedBefore
+        arrivedBefore = arrived
+        if (following) list.scrollToItem(0) else if (changed) somethingNew = true
     }
     Box(modifier.fillMaxWidth()) {
     LazyColumn(
@@ -668,14 +678,31 @@ private fun Composer(
         if (state.pending.isNotEmpty() || state.uploading) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 state.pending.forEach { file ->
-                    Text(
-                        "${file.filename}  ×",
+                    Row(
                         Modifier.clip(RoundedCornerShape(Ork.radius6)).background(Ork.surfaceRaised).clickable { onRemovePending(file) }
-                            .height(PICKER_HEIGHT).padding(horizontal = 8.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Ork.textBody,
-                        maxLines = 1,
-                    )
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (file.isPicture) {
+                            AsyncImage(
+                                model = state.previews[file.id],
+                                contentDescription = file.filename,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(Ork.radius4)),
+                            )
+                        } else {
+                            Text(
+                                file.filename,
+                                Modifier.widthIn(max = 160.dp).padding(start = 4.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Ork.textBody,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Text("×", Modifier.padding(end = 4.dp), style = MaterialTheme.typography.bodyMedium, color = Ork.textSecondary)
+                    }
                 }
                 if (state.uploading) CircularProgressIndicator(Modifier.size(14.dp), color = Ork.accent, strokeWidth = 2.dp)
             }

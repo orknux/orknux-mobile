@@ -56,6 +56,8 @@ data class ConversationState(
     val requests: List<InteractionRequest> = emptyList(),
     val suggestions: List<String> = emptyList(),
     val pending: List<Attachment> = emptyList(),
+    /** Files picked here, by attachment id: what to draw until the server has tied them to the chat. */
+    val previews: Map<String, String> = emptyMap(),
     val uploading: Boolean = false,
     val workspace: Workspace? = null,
     val deleted: Boolean = false,
@@ -81,9 +83,15 @@ class ConversationViewModel(
     private val api: ChatApi,
     private val workspaceId: String,
     chatId: String?,
+    private val cache: ChatCache? = null,
 ) : ViewModel() {
     private var id: String? = chatId
-    private val _state = MutableStateFlow(ConversationState(loading = chatId != null))
+    private val _state = MutableStateFlow(
+        // On the first frame rather than a moment after, or the list has nothing to restore its place in.
+        chatId?.let { cache?.read(it) }?.takeIf { it.lines.isNotEmpty() }
+            ?.let { ConversationState(chat = it.chat, lines = it.lines) }
+            ?: ConversationState(loading = chatId != null),
+    )
     val state: StateFlow<ConversationState> = _state.asStateFlow()
 
     var listener: TurnListener? = null
@@ -136,8 +144,6 @@ class ConversationViewModel(
     /** The screen came into view. */
     fun resume() {
         if (id != null && turnJob?.isActive != true) {
-            // A followed turn may have ended unseen; if not, the follow draws it again from its first frame.
-            _state.update { it.copy(live = null) }
             viewModelScope.launch { reload(markRead = true) }
             startFollowing()
         }
@@ -170,7 +176,12 @@ class ConversationViewModel(
                     loading = false,
                 )
             }
-            if (session == null) fail("That chat is no longer here.")
+            if (session == null) {
+                cache?.remove(chat)
+                fail("That chat is no longer here.")
+            } else if (_state.value.live == null) {
+                cache?.write(chat, CachedChat(session, lines))
+            }
             refreshEffort()
             refreshRequests()
             if (markRead) runCatching { api.markRead(chat) }
@@ -179,7 +190,8 @@ class ConversationViewModel(
             throw cancelled
         } catch (failure: IOException) {
             _state.update { it.copy(loading = false) }
-            fail(failure.message ?: "The chat could not be read.")
+            // With a copy on screen, being offline for a moment is nothing to interrupt anybody about.
+            if (_state.value.lines.isEmpty()) fail(failure.message ?: "The chat could not be read.")
         }
     }
 
@@ -358,6 +370,11 @@ class ConversationViewModel(
                         first = { onFrame -> api.follow(chat, wait, onFrame) },
                         onEvent = { event ->
                             when {
+                                // A turn left on screen when the app was backgrounded ended unseen.
+                                event is TurnEvent.Idle && _state.value.live != null -> {
+                                    _state.update { it.copy(live = null) }
+                                    reload(markRead = true)
+                                }
                                 event is TurnEvent.Following -> {
                                     began = true
                                     enterFollowedTurn(chat, event.kept)
@@ -518,6 +535,7 @@ class ConversationViewModel(
             try {
                 followJob?.cancel()
                 api.delete(chat)
+                cache?.remove(chat)
                 _state.update { it.copy(deleted = true) }
             } catch (refused: IOException) {
                 fail(refused.message ?: "It could not be deleted.")
@@ -536,13 +554,13 @@ class ConversationViewModel(
         }
     }
 
-    fun attach(filename: String, contentType: String, read: () -> ByteArray) {
+    fun attach(filename: String, contentType: String, preview: String, read: () -> ByteArray) {
         viewModelScope.launch {
             _state.update { it.copy(uploading = true) }
             try {
                 val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { read() }
                 val kept = api.upload(workspaceId, filename, contentType, bytes)
-                _state.update { it.copy(pending = it.pending + kept) }
+                _state.update { it.copy(pending = it.pending + kept, previews = it.previews + kept.associate { file -> file.id to preview }) }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (refused: Exception) {
@@ -555,7 +573,7 @@ class ConversationViewModel(
 
     fun removePending(attachment: Attachment) = _state.update { it.copy(pending = it.pending - attachment) }
 
-    fun attachmentUrl(id: String) = api.attachmentUrl(id)
+    fun attachmentUrl(id: String) = _state.value.previews[id] ?: api.attachmentUrl(id)
 
     private companion object {
         const val REQUEST_POLL_MS = 3_000L

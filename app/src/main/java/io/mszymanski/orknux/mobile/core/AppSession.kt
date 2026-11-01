@@ -4,6 +4,7 @@ import android.content.Context
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import io.mszymanski.orknux.mobile.chat.ChatCache
 import io.mszymanski.orknux.mobile.voice.DEFAULT_PAUSE_MS
 import io.mszymanski.orknux.mobile.voice.DEFAULT_PITCH_HZ
 import io.mszymanski.orknux.mobile.voice.SpeechEngine
@@ -159,7 +160,13 @@ class AppSession(context: Context) {
         clear()
     }
 
+    private val cacheFolder = java.io.File(app.filesDir, "chats")
+
+    /** The chats last looked at on this server; see [ChatCache]. */
+    fun chatCache(client: OrknuxClient) = ChatCache(cacheFolder, client.base, store::seal, store::open)
+
     private fun clear() {
+        cacheFolder.deleteRecursively()
         store.put(KEY_SIGNED_IN, null)
         store.put(KEY_TOKEN, null)
         store.put(KEY_COOKIES, null)

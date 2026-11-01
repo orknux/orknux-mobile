@@ -46,7 +46,7 @@ val ChatPerspective = Perspective(
             val chat = entry.arguments?.getString("chat")?.takeUnless { it == NEW }
             val api = remember(context.client) { ChatApi(context.client) }
             val model: ConversationViewModel = viewModel(
-                factory = viewModelFactory { initializer { ConversationViewModel(api, workspace, chat) } },
+                factory = viewModelFactory { initializer { ConversationViewModel(api, workspace, chat, context.session.chatCache(context.client)) } },
             )
             ConversationScreen(
                 model,

@@ -1,9 +1,20 @@
 package io.mszymanski.orknux.mobile.chat
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.jsonPrimitive
+
+/** REST sends an attachment's id as a number and GraphQL as a string; here it is always a string. */
+object AnyIdSerializer : JsonTransformingSerializer<String>(String.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement = JsonPrimitive(element.jsonPrimitive.content)
+}
 
 @Serializable
 data class Attachment(
+    @Serializable(with = AnyIdSerializer::class)
     val id: String,
     val filename: String = "",
     val contentType: String = "application/octet-stream",

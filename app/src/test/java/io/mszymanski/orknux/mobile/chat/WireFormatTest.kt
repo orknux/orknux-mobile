@@ -30,16 +30,34 @@ class WireFormatTest {
         assertEquals("7", (event as TurnEvent.Filed).attachment.id)
     }
 
+    /** The real endpoint's shape: `ChatAttachmentView.id` is a Long, so a number on the wire. */
     @Test
-    fun anUploadsAnswerIsRead() = runTest {
+    fun anUploadedFileGoesUpAndItsIdGoesOutWithTheMessage() = runTest {
         MockWebServer().use { server ->
             server.start()
-            server.enqueue(MockResponse.Builder().body("""{"attachments":[{"id":"9","filename":"a.png","contentType":"image/png","sizeBytes":12}]}""").build())
+            server.enqueue(MockResponse.Builder().body("""{"attachments":[{"id":9,"filename":"a.png","contentType":"image/png","sizeBytes":12,"uploadedBy":"alice"}]}""").build())
+            server.enqueue(MockResponse.Builder().body("event: done\ndata: {}\n\n").build())
             val client = OrknuxClient(server.url("/").toString().trimEnd('/'), null, okhttp3.CookieJar.NO_COOKIES)
-            val kept = ChatApi(client).upload("1", "a.png", "image/png", ByteArray(12))
+            val api = ChatApi(client)
+
+            val kept = api.upload("1", "a.png", "image/png", ByteArray(12))
             assertEquals("9", kept.single().id)
             assertTrue(kept.single().isPicture)
+            val upload = server.takeRequest()
+            assertEquals("/api/workspaces/1/attachments", upload.url.encodedPath)
+            val form = upload.body!!.utf8()
+            assertTrue(form, form.contains("name=\"files\"; filename=\"a.png\"") && form.contains("Content-Type: image/png"))
+
+            api.stream("3", "look", kept.map(Attachment::id), voice = false) { }
+            val sent = OrknuxJson.parseToJsonElement(server.takeRequest().body!!.utf8()).toString()
+            assertTrue(sent, sent.contains("\"attachmentIds\":[9]"))
         }
+    }
+
+    @Test
+    fun anAttachmentFromGraphqlIsStillRead() {
+        val line = OrknuxJson.decodeFromString(ChatMessage.serializer(), """{"role":"user","attachments":[{"id":"9"}]}""")
+        assertEquals("9", line.attachments.single().id)
     }
 
     @Test

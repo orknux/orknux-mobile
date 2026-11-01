@@ -18,6 +18,18 @@ import javax.crypto.spec.GCMParameterSpec
 class SecureStore(context: Context) {
     private val prefs = context.getSharedPreferences("orknux", Context.MODE_PRIVATE)
 
+    fun seal(plain: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(TRANSFORM)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey())
+        return cipher.iv + cipher.doFinal(plain)
+    }
+
+    fun open(sealed: ByteArray): ByteArray {
+        val cipher = Cipher.getInstance(TRANSFORM)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(128, sealed, 0, IV_SIZE))
+        return cipher.doFinal(sealed, IV_SIZE, sealed.size - IV_SIZE)
+    }
+
     fun get(key: String): String? {
         val stored = prefs.getString(key, null) ?: return null
         return runCatching {
