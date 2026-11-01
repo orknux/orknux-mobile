@@ -81,7 +81,9 @@ jobs:
         run: |
           ./gradlew :app:assembleRelease --console=plain
           cp app/build/outputs/apk/release/app-release.apk "orknux-mobile-${GITHUB_REF_NAME#v}.apk"
-          "$ANDROID_HOME"/build-tools/*/apksigner verify "orknux-mobile-${GITHUB_REF_NAME#v}.apk"
+          # The runner holds several versions of the build tools; a bare glob hands all of them to the first.
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          "$apksigner" verify "orknux-mobile-${GITHUB_REF_NAME#v}.apk"
 
       - name: GitHub release
         env:
