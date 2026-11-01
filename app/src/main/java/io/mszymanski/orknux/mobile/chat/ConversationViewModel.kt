@@ -22,7 +22,8 @@ sealed interface LiveStep {
     data class Call(val at: Int, val tool: String, val arguments: String, val result: String? = null, val failed: Boolean = false) : LiveStep
     data class Said(val text: String) : LiveStep
     data class Thought(val text: String, val millis: Long) : LiveStep
-    data class Person(val text: String) : LiveStep
+    /** Written during the turn: it waits in the agent's inbox until its next step takes it in. */
+    data class Person(val text: String, val read: Boolean = false) : LiveStep
     data class Picture(val markdown: String) : LiveStep
 }
 
@@ -415,6 +416,7 @@ class ConversationViewModel(
                 }
                 viewModelScope.launch { refreshRequests() }
             }
+            is TurnEvent.PersonRead -> updateLive { it.copy(steps = markPersonRead(it.steps, event.text)) }
             is TurnEvent.Drew -> updateLive { it.copy(steps = it.steps + LiveStep.Picture(event.markdown)) }
             is TurnEvent.Writing -> updateLive {
                 it.copy(status = if (event.tool != null) "Writing ${event.tool}…" else "Writing…")
@@ -557,6 +559,25 @@ class ConversationViewModel(
         const val FOLLOW_RETRY_MS = 3_000L
         const val FOLLOW_RETRY_MOST_MS = 30_000L
     }
+}
+
+/** The oldest unread line saying this is now read; one written from elsewhere is added as read. */
+fun markPersonRead(steps: List<LiveStep>, text: String): List<LiveStep> {
+    val at = steps.indexOfFirst { it is LiveStep.Person && !it.read && it.text == text }
+    return if (at >= 0) steps.toMutableList().also { it[at] = LiveStep.Person(text, read = true) } else steps + LiveStep.Person(text, read = true)
+}
+
+/**
+ * Which line carries the eye: the last thing the person said, once the agent has
+ * shown it took it in by doing anything after it. Reading a long prompt does not
+ * count, and neither does a question left unanswered by a stopped turn.
+ */
+fun readLineIndex(lines: List<ChatMessage>, live: LiveTurn?): Int? {
+    val last = lines.indexOfLast { it.isUser }
+    if (last < 0) return null
+    val answeredInHistory = last < lines.lastIndex
+    val workingOnIt = live != null && (live.answer.isNotEmpty() || live.thinking.isNotBlank() || live.steps.any { it !is LiveStep.Person })
+    return last.takeIf { answeredInHistory || workingOnIt }
 }
 
 /** "Answered in 2 seconds · 1.2k in, 340 out · $0.0031". Nothing it does not know. */

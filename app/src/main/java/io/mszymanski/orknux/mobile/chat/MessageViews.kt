@@ -117,7 +117,13 @@ fun MarkdownText(markdown: String, base: String, modifier: Modifier = Modifier) 
 
 /** What the person said: the solid blue bubble of the web client, at the right. */
 @Composable
-fun UserBubble(message: ChatMessage, attachmentUrl: (String) -> String, modifier: Modifier = Modifier) {
+fun UserBubble(
+    message: ChatMessage,
+    attachmentUrl: (String) -> String,
+    modifier: Modifier = Modifier,
+    /** True draws the eye, false says it is queued, null says nothing: most lines are long since read. */
+    read: Boolean? = null,
+) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         AttachmentRow(message.attachments, attachmentUrl)
         if (message.content.isNotBlank()) {
@@ -131,6 +137,15 @@ fun UserBubble(message: ChatMessage, attachmentUrl: (String) -> String, modifier
                     color = Ork.onAccent,
                 )
             }
+        }
+        when (read) {
+            true -> Box(contentAlignment = Alignment.Center) {
+                Icon(OrkIcons.Eye, "Read by the agent", Modifier.size(16.dp), tint = Ork.textMuted)
+                // The web's file is only the outline, which at this size reads as a lens.
+                Box(Modifier.size(5.dp).background(Ork.textMuted, androidx.compose.foundation.shape.CircleShape))
+            }
+            false -> Text("Queued", style = MaterialTheme.typography.bodySmall, color = Ork.textMuted)
+            null -> Unit
         }
     }
 }

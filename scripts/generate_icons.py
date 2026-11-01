@@ -12,7 +12,7 @@ ICONS = {
     "Copy": "copy", "Cpu": "cpu", "LogOut": "log-out", "Mic": "mic", "Pencil": "pencil",
     "Plus": "plus", "Refresh": "refresh-cw", "Search": "search", "Send": "send", "Stop": "square",
     "Trash": "trash-2", "Volume": "volume-2", "Alert": "alert-triangle", "Close": "x-circle",
-    "Message": "message-square", "File": "file-text", "User": "user", "Brain": "brain",
+    "Message": "message-square", "File": "file-text", "User": "user", "Brain": "brain", "Eye": "eye",
 }
 NS = "{http://www.w3.org/2000/svg}"
 

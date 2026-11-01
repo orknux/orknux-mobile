@@ -104,7 +104,7 @@ private val PICKER_HEIGHT = 38.dp
 private sealed interface TranscriptRow {
     val key: String
 
-    data class Line(override val key: String, val message: ChatMessage) : TranscriptRow
+    data class Line(override val key: String, val message: ChatMessage, val read: Boolean) : TranscriptRow
     data class Step(override val key: String, val step: LiveStep) : TranscriptRow
     data class LiveThinking(override val key: String, val text: String) : TranscriptRow
     data class LiveAnswer(override val key: String, val text: String) : TranscriptRow
@@ -118,8 +118,9 @@ private sealed interface TranscriptRow {
 private fun rowsOf(state: ConversationState): List<TranscriptRow> {
     val rows = mutableListOf<TranscriptRow>()
     val lastAnswer = state.lines.indexOfLast { it.isAnswer }
+    val readAt = readLineIndex(state.lines, state.live)
     state.lines.forEachIndexed { index, message ->
-        rows += TranscriptRow.Line("l$index", message)
+        rows += TranscriptRow.Line("l$index", message, read = index == readAt)
         if (message.isAnswer && message.content.isNotBlank()) {
             rows += TranscriptRow.Actions("a$index", message, last = index == lastAnswer && state.live == null)
         }
@@ -527,7 +528,7 @@ private fun Transcript(
     ) {
         items(rows, key = { it.key }) { row ->
             when (row) {
-                is TranscriptRow.Line -> HistoryLine(row.message, state, base, attachmentUrl)
+                is TranscriptRow.Line -> HistoryLine(row.message, row.read, state, base, attachmentUrl)
                 is TranscriptRow.Step -> LiveStepView(row.step, base)
                 is TranscriptRow.LiveThinking -> ThinkingLine(row.text, running = true)
                 is TranscriptRow.LiveAnswer -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -574,9 +575,9 @@ private fun Transcript(
 }
 
 @Composable
-private fun HistoryLine(message: ChatMessage, state: ConversationState, base: String, attachmentUrl: (String) -> String) {
+private fun HistoryLine(message: ChatMessage, read: Boolean, state: ConversationState, base: String, attachmentUrl: (String) -> String) {
     when {
-        message.isUser -> UserBubble(message, attachmentUrl)
+        message.isUser -> UserBubble(message, attachmentUrl, read = true.takeIf { read })
         message.isCall -> ToolLine(message.actor ?: "tool", message.content)
         message.isThought -> ThinkingLine(message.thinking ?: message.content, message.thinkingMillis?.toLong())
         message.isAnswer -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -595,7 +596,7 @@ private fun LiveStepView(step: LiveStep, base: String) {
         is LiveStep.Call -> ToolLine(step.tool, step.arguments, step.result, step.failed, running = step.result == null)
         is LiveStep.Said -> MarkdownText(step.text, base)
         is LiveStep.Thought -> ThinkingLine(step.text, step.millis)
-        is LiveStep.Person -> UserBubble(ChatMessage("user", step.text), attachmentUrl = { "" })
+        is LiveStep.Person -> UserBubble(ChatMessage("user", step.text), attachmentUrl = { "" }, read = step.read)
         is LiveStep.Picture -> MarkdownText(step.markdown, base)
     }
 }
