@@ -1,7 +1,14 @@
 # Orknux Mobile
 
-The Android client for [orknux-server](../../Projects/orknux-server). Chat and voice for now; the other
+The Android client for [orknux-server](https://github.com/orknux/orknux-server). Chat and voice for now; the other
 perspectives (Flow, Design, Explore, Workspace) will join it.
+
+<p>
+  <img src="docs/screens/2-chats.png" width="200" alt="The chat list">
+  <img src="docs/screens/3-chat.png" width="200" alt="A conversation">
+  <img src="docs/screens/5-plan.png" width="200" alt="A plan to approve">
+  <img src="docs/screens/4-voice.png" width="200" alt="Voice mode">
+</p>
 
 ## Running it
 
@@ -30,6 +37,12 @@ transcription and speech models. It is skipped where there is none. It replaces 
 recording, makes one chat and deletes it, and uninstalls the app when it ends, which signs the app out.
 
 `scripts/emu.sh` drives a running emulator (screenshots, taps, what is on screen).
+
+CI (`.github/workflows/ci.yml`) runs the unit tests and builds on every push and pull request. A `v*` tag also
+builds the signed APK and publishes the GitHub release. It needs the `ORKNUX_ANDROID_KEYSTORE` (base64),
+`ORKNUX_ANDROID_KEYSTORE_PASSWORD`, `ORKNUX_ANDROID_KEY_ALIAS` and `ORKNUX_ANDROID_KEY_PASSWORD` secrets. Releasing is
+described in `.claude/skills/cut-release/SKILL.md`; `scripts/screenshots.sh` retakes the pictures in `docs/screens`
+against a made-up server, on an emulator only.
 
 ## How it is put together
 

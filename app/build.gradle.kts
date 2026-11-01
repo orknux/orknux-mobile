@@ -16,6 +16,23 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    // From the environment, where CI puts its secrets; without them a release build comes out unsigned.
+    val keystore = System.getenv("ORKNUX_ANDROID_KEYSTORE_FILE")
+    signingConfigs {
+        if (keystore != null) {
+            create("release") {
+                storeFile = file(keystore)
+                storePassword = System.getenv("ORKNUX_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ORKNUX_ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ORKNUX_ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
+        }
+    }
     buildFeatures { compose = true }
     testOptions { unitTests.isReturnDefaultValues = true }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }

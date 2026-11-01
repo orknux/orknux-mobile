@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests and debug build
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
+      - name: Test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orknux-mobile-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: The tag, the version and the changelog agree
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -q "versionName = \"$version\"" app/build.gradle.kts \
+            || { echo "::error::app/build.gradle.kts is not at $version"; exit 1; }
+          awk -v v="## $version" '$0==v{on=1;next} /^## /{on=0} on' CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+          {
+            cat notes.md
+            echo
+            echo '## Screenshots'
+            echo
+            for shot in docs/screens/*.png; do
+              echo "<img src=\"https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_REF_NAME/$shot\" width=\"220\">"
+            done
+          } > release-notes.md
+
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.ORKNUX_ANDROID_KEYSTORE }}
+        run: |
+          [ -n "$KEYSTORE" ] || { echo "::error::The ORKNUX_ANDROID_KEYSTORE secret is not set"; exit 1; }
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Signed release build
+        env:
+          ORKNUX_ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          ORKNUX_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ORKNUX_ANDROID_KEYSTORE_PASSWORD }}
+          ORKNUX_ANDROID_KEY_ALIAS: ${{ secrets.ORKNUX_ANDROID_KEY_ALIAS }}
+          ORKNUX_ANDROID_KEY_PASSWORD: ${{ secrets.ORKNUX_ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew :app:assembleRelease --console=plain
+          cp app/build/outputs/apk/release/app-release.apk "orknux-mobile-${GITHUB_REF_NAME#v}.apk"
+          "$ANDROID_HOME"/build-tools/*/apksigner verify "orknux-mobile-${GITHUB_REF_NAME#v}.apk"
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "orknux-mobile-${GITHUB_REF_NAME#v}.apk" \
+            --title "$GITHUB_REF_NAME" --notes-file release-notes.md
