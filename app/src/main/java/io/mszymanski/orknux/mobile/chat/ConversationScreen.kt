@@ -543,7 +543,8 @@ private fun Transcript(
     val said = state.lines.count { it.isUser } + (state.live?.steps?.count { it is LiveStep.Person } ?: 0)
     var saidBefore by rememberSaveable { mutableStateOf(said) }
     var arrivedBefore by rememberSaveable { mutableStateOf(arrived) }
-    LaunchedEffect(arrived, said) {
+    // rows.size too: suggestions and the like should stay in view, though they are no news to announce.
+    LaunchedEffect(arrived, said, rows.size) {
         // Somebody who has just said something wants to see what comes of it, wherever they had scrolled to.
         if (said > saidBefore) {
             following = true
