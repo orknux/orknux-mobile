@@ -5,7 +5,7 @@ What changed in each release, one line per change.
 Written for the person deciding whether to upgrade: the change and the one thing
 worth knowing about it. Not a list of commits, which git already keeps.
 
-## 0.1.0
+## 0.1.1
 
 ### ✨ Added
 - Chat with a workspace's agents, with streamed answers that pick up again after a dropped connection.
