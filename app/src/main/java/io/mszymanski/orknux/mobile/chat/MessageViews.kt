@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Checkbox
@@ -126,26 +127,29 @@ fun UserBubble(
 ) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         AttachmentRow(message.attachments, attachmentUrl)
-        if (message.content.isNotBlank()) {
-            SelectionContainer {
-                Text(
-                    message.content,
-                    Modifier.widthIn(max = 320.dp)
-                        .background(Ork.accent, RoundedCornerShape(topStart = 12.dp, topEnd = 4.dp, bottomStart = 12.dp, bottomEnd = 12.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp),
-                    color = Ork.onAccent,
-                )
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // First, so the bubble gives way to it on a narrow phone rather than pushing it off.
+            when (read) {
+                true -> Box(contentAlignment = Alignment.Center) {
+                    Icon(OrkIcons.Eye, "Read by the agent", Modifier.size(16.dp), tint = Ork.textMuted)
+                    // The web's file is only the outline, which at this size reads as a lens.
+                    Box(Modifier.size(5.dp).background(Ork.textMuted, CircleShape))
+                }
+                false -> Text("Queued", style = MaterialTheme.typography.bodySmall, color = Ork.textMuted)
+                null -> Unit
             }
-        }
-        when (read) {
-            true -> Box(contentAlignment = Alignment.Center) {
-                Icon(OrkIcons.Eye, "Read by the agent", Modifier.size(16.dp), tint = Ork.textMuted)
-                // The web's file is only the outline, which at this size reads as a lens.
-                Box(Modifier.size(5.dp).background(Ork.textMuted, androidx.compose.foundation.shape.CircleShape))
+            if (message.content.isNotBlank()) {
+                SelectionContainer {
+                    Text(
+                        message.content,
+                        Modifier.widthIn(max = 320.dp)
+                            .background(Ork.accent, RoundedCornerShape(topStart = 12.dp, topEnd = 4.dp, bottomStart = 12.dp, bottomEnd = 12.dp))
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 22.sp),
+                        color = Ork.onAccent,
+                    )
+                }
             }
-            false -> Text("Queued", style = MaterialTheme.typography.bodySmall, color = Ork.textMuted)
-            null -> Unit
         }
     }
 }
