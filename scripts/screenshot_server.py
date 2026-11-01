@@ -6,10 +6,13 @@ chats: this answers only what the app's screens ask, with invented data.
     python scripts/screenshot_server.py [port]
 """
 import json
+import os
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 AGENT = "Support responder"
+STREAM_PIECES = int(os.environ.get("STREAM_PIECES", 25))
 WORKSPACE = {
     "id": "1", "name": "Northwind Support", "transcriptionModelId": "2", "speechModelId": "3",
     "voiceButtonHidden": False,
@@ -115,12 +118,28 @@ class Handler(BaseHTTPRequestHandler):
             self.reply("{}", status=404)
 
     def do_POST(self):
+        if self.path.endswith("/stream"):
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            self.stream()
+            return
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or "{}")
         try:
             self.reply(json.dumps({"data": answer(body["query"], body.get("variables", {}))}))
         except ValueError as refused:
             print(refused, file=sys.stderr)
             self.reply(json.dumps({"errors": [{"message": str(refused)}]}))
+
+    def stream(self):
+        """A slow answer, for trying what the transcript does while one arrives."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.end_headers()
+        for i in range(STREAM_PIECES):
+            time.sleep(1)
+            frame = {"text": f"Piece {i} of the answer. "}
+            self.wfile.write(f"event: chunk\ndata: {json.dumps(frame)}\n\n".encode())
+            self.wfile.flush()
+        self.wfile.write(b'event: done\ndata: {"millis": 1000}\n\n')
 
     def log_message(self, *_):
         pass

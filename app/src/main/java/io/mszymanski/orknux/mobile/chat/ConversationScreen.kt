@@ -59,6 +59,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleStartEffect
+import kotlinx.coroutines.launch
 import io.mszymanski.orknux.mobile.design.Banner
 import io.mszymanski.orknux.mobile.design.ConfirmDialog
 import io.mszymanski.orknux.mobile.design.JetBrainsMono
@@ -100,6 +102,8 @@ import io.mszymanski.orknux.mobile.voice.Waveform
 
 private val COMPOSER_BUTTON = 44.dp
 private val PICKER_HEIGHT = 38.dp
+/** Within this of the newest still counts as being there: a thumb never lands exactly on the end. */
+private const val AT_NEWEST_PX = 48
 
 /** One thing the transcript draws, newest last. */
 private sealed interface TranscriptRow {
@@ -511,22 +515,31 @@ private fun Transcript(
     }
     // Reversed, so a growing answer stays pinned above the composer and history scrolls up.
     val list = rememberLazyListState()
-    // New rows keep the list where it is, so it follows them unless somebody has scrolled up to read.
+    // Follows what arrives only while the newest is in view: scrolled up to read, the list stays put and says so.
     var following by remember { mutableStateOf(true) }
+    var somethingNew by remember { mutableStateOf(false) }
     LaunchedEffect(list) {
-        snapshotFlow { list.isScrollInProgress to list.firstVisibleItemIndex }.collect { (scrolling, first) ->
-            if (scrolling) following = first == 0
-        }
+        snapshotFlow { Triple(list.isScrollInProgress, list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset) }
+            .collect { (scrolling, first, offset) ->
+                val atNewest = first == 0 && offset <= AT_NEWEST_PX
+                if (scrolling) following = atNewest
+                if (atNewest) somethingNew = false
+            }
     }
-    val newest = rows.first().key
-    LaunchedEffect(newest, rows.size) {
-        if (following || rows.first() is TranscriptRow.Status) {
-            following = true
-            list.scrollToItem(0)
-        }
+    val scope = rememberCoroutineScope()
+    // Somebody who has just said something wants to see what comes of it, wherever they had scrolled to.
+    val said = state.lines.count { it.isUser }
+    LaunchedEffect(said) {
+        following = true
+        somethingNew = false
     }
+    val arrived = rows.size to (state.live?.answer?.length ?: 0)
+    LaunchedEffect(arrived, said) {
+        if (following) list.scrollToItem(0) else somethingNew = true
+    }
+    Box(modifier.fillMaxWidth()) {
     LazyColumn(
-        modifier.fillMaxWidth(),
+        Modifier.fillMaxSize(),
         state = list,
         reverseLayout = true,
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
@@ -578,6 +591,23 @@ private fun Transcript(
                 is TranscriptRow.Question -> InteractionCard(row.request, base) { options, text -> onAnswer(row.request, options, text) }
             }
         }
+    }
+    if (somethingNew) {
+        Row(
+            Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
+                .clip(RoundedCornerShape(99.dp)).background(Ork.accent)
+                .clickable {
+                    following = true
+                    somethingNew = false
+                    scope.launch { list.scrollToItem(0) }
+                }.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(OrkIcons.ArrowLeft, null, Modifier.size(16.dp).rotate(-90f), tint = Ork.onAccent)
+            Text("New message", style = MaterialTheme.typography.labelMedium, color = Ork.onAccent)
+        }
+    }
     }
 }
 
